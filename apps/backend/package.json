@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "seed": "tsx seed/seed.ts",
+    "import:images": "tsx scripts/import-images.ts",
     "webhook:set": "tsx scripts/set-webhook.ts",
     "build": "tsc --noEmit"
   },
