@@ -346,9 +346,14 @@ const { publicUrl } = await setupVercel(supa);
 await setupTelegram(publicUrl);
 await setupGithubVariables(publicUrl);
 
-// финальная проверка API
-const health = await call(`${publicUrl}/api/health`);
-console.log(`healthcheck: HTTP ${health.status} ${JSON.stringify(health.body)}`);
+// финальная проверка API (пара попыток на холодный старт)
+let health;
+for (let i = 0; i < 3; i++) {
+  health = await call(`${publicUrl}/api/health`);
+  console.log(`healthcheck: HTTP ${health.status} ${JSON.stringify(health.body).slice(0, 200)}`);
+  if (health.status === 200) break;
+  await sleep(5000);
+}
 console.log('\n=== ГОТОВО ===');
 console.log(`Mini App:  ${publicUrl}`);
 console.log(`Админка:   ${publicUrl}/admin  (логин admin@cyclefit.local, пароль: ${ADMIN_PASSWORD})`);

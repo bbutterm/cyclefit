@@ -11,6 +11,9 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
+      - name: Wait for Vercel build (push-триггер стартует одновременно со сборкой)
+        if: github.event_name == 'push'
+        run: sleep 330
       - name: Probe production
         run: |
           for host in cyclefit-liard.vercel.app; do
