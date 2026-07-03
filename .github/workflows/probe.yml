@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Probe production
         run: |
-          for host in cyclefit-app.vercel.app cyclefit-miniapp.vercel.app; do
+          for host in cyclefit-liard.vercel.app; do
             for path in /api/health /api/plans / /admin; do
               url="https://$host$path"
               code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 20 "$url" || echo "ERR")
