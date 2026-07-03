@@ -1,0 +1,22 @@
+# Пробник прода: дёргает ключевые URL и печатает статусы в лог.
+# Запускается на каждый push в main — лог читается через API.
+name: probe
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe production
+        run: |
+          for path in /api/health /api/plans / /admin /uploads-check; do
+            url="https://cyclefit.vercel.app$path"
+            [ "$path" = "/uploads-check" ] && url="https://cyclefit.vercel.app/api/health"
+            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 20 "$url" || echo "ERR")
+            echo "== $url → $code"
+            head -c 300 /tmp/body; echo; echo
+          done
