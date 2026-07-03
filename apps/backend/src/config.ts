@@ -16,14 +16,27 @@ function num(name: string, def: number): number {
   return Number.isFinite(n) ? n : def;
 }
 
+const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
+/** В проде секрет обязателен; в dev допускается дефолт. */
+function requiredSecret(name: string, devDefault: string): string {
+  const v = process.env[name];
+  if (v && v.length > 0) return v;
+  if (isProd) {
+    throw new Error(`${name} не задан — обязателен в production (fail-fast, безопасность)`);
+  }
+  return devDefault;
+}
+
 export const config = {
   port: num('PORT', 3000),
   publicUrl: (process.env.PUBLIC_URL ?? 'http://localhost:8080').replace(/\/$/, ''),
-  jwtSecret: process.env.JWT_SECRET ?? 'dev-secret',
+  jwtSecret: requiredSecret('JWT_SECRET', 'dev-secret'),
   botToken: process.env.TELEGRAM_BOT_TOKEN ?? '',
-  webhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? 'dev-webhook-secret',
+  webhookSecret: requiredSecret('TELEGRAM_WEBHOOK_SECRET', 'dev-webhook-secret'),
   adminEmail: process.env.ADMIN_EMAIL ?? 'admin@cyclefit.local',
-  adminPassword: process.env.ADMIN_PASSWORD ?? 'admin12345',
+  adminPassword: requiredSecret('ADMIN_PASSWORD', 'admin12345'),
+  isProd,
   paymentsMode: (process.env.PAYMENTS_MODE ?? 'stub') as 'stub' | 'real',
   trialDays: num('TRIAL_DAYS', 7),
   prices: {
