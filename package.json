@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "pnpm -r build",
-    "build:vercel": "pnpm --filter @cyclefit/backend prisma:generate && pnpm --filter @cyclefit/miniapp build && pnpm --filter @cyclefit/admin build && rm -rf public && mkdir -p public/admin && cp -r apps/miniapp/dist/. public/ && cp -r apps/admin/dist/. public/admin/",
+    "build:vercel": "pnpm --filter @cyclefit/backend prisma:generate && pnpm --filter @cyclefit/backend prisma:migrate && pnpm --filter @cyclefit/backend seed && pnpm --filter @cyclefit/miniapp build && pnpm --filter @cyclefit/admin build && rm -rf public && mkdir -p public/admin && cp -r apps/miniapp/dist/. public/ && cp -r apps/admin/dist/. public/admin/",
     "typecheck": "pnpm -r typecheck && tsc -p api/tsconfig.json",
     "test": "pnpm -r test",
     "seed": "pnpm --filter @cyclefit/backend seed",

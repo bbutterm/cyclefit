@@ -15,9 +15,5 @@
     { "source": "/admin", "destination": "/admin/index.html" },
     { "source": "/admin/:path*", "destination": "/admin/index.html" },
     { "source": "/:path*", "destination": "/index.html" }
-  ],
-  "crons": [
-    { "path": "/api/cron/hourly", "schedule": "5 * * * *" },
-    { "path": "/api/cron/daily", "schedule": "10 3 * * *" }
   ]
 }
