@@ -1,0 +1,25 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# prisma
+apps/backend/prisma/*.db
+
+# uploads (dev image storage)
+apps/backend/uploads/*
+!apps/backend/uploads/.gitkeep
+
+# misc
+.DS_Store
+coverage/
+*.log
