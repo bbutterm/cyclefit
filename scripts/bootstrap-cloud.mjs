@@ -191,6 +191,28 @@ async function setupVercel(supa) {
     if (!project) fail('не удалось создать проект Vercel — проверь, что GitHub-репозиторий подключён к Vercel (vercel.com → Add New → Project должен видеть bbutterm/cyclefit)');
   }
   console.log(`Использую проект Vercel: ${project.name} [${project.id}]`);
+  console.log(
+    `Текущие настройки: framework=${project.framework ?? 'null'}, rootDirectory=${project.rootDirectory ?? 'null'}, buildCommand=${project.buildCommand ?? 'null'}, outputDirectory=${project.outputDirectory ?? 'null'}`,
+  );
+
+  // Сбрасываем переопределения дашборда (могли остаться от старого шаблона),
+  // чтобы применялся vercel.json из репозитория
+  const patched = await vc(`/v9/projects/${project.id}`, {
+    method: 'PATCH',
+    body: {
+      framework: null,
+      rootDirectory: null,
+      buildCommand: null,
+      outputDirectory: null,
+      installCommand: null,
+      devCommand: null,
+    },
+  });
+  if (patched.status >= 300) {
+    console.log(`настройки не сброшены: HTTP ${patched.status} ${JSON.stringify(patched.body).slice(0, 300)}`);
+  } else {
+    console.log('Настройки проекта сброшены (управление через vercel.json)');
+  }
 
   const publicUrl = `https://${project.name}.vercel.app`;
 
@@ -244,7 +266,19 @@ async function setupVercel(supa) {
     console.log(`Деплой: ${state}`);
     if (state === 'READY') break;
     if (state === 'ERROR' || state === 'CANCELED') {
-      fail(`деплой упал (${state}) — смотри лог сборки в Vercel: https://vercel.com — проект ${project.name}`);
+      // печатаем хвост лога сборки Vercel для диагностики
+      const events = await vc(`/v3/deployments/${depId}/events?builds=1&limit=500`);
+      if (Array.isArray(events.body)) {
+        console.log('--- лог сборки Vercel (хвост) ---');
+        const lines = events.body
+          .map((e) => e?.payload?.text ?? e?.text ?? '')
+          .filter(Boolean);
+        for (const line of lines.slice(-80)) console.log(line);
+        console.log('--- конец лога сборки ---');
+      } else {
+        console.log(`events: HTTP ${events.status} ${JSON.stringify(events.body).slice(0, 300)}`);
+      }
+      fail(`деплой упал (${state})`);
     }
     if (i === 89) fail('деплой не завершился за 15 минут');
   }
