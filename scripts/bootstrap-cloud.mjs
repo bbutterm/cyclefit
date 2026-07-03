@@ -214,7 +214,12 @@ async function setupVercel(supa) {
     console.log('Настройки проекта сброшены (управление через vercel.json)');
   }
 
-  const publicUrl = `https://${project.name}.vercel.app`;
+  // Реальный *.vercel.app-домен проекта (имя может быть занято → суффикс, напр. cyclefit-liard)
+  let publicUrl = `https://${project.name}.vercel.app`;
+  const domains = await vc(`/v9/projects/${project.id}/domains`);
+  const vercelDomain = domains.body?.domains?.find((d) => d.name.endsWith('.vercel.app'))?.name;
+  if (vercelDomain) publicUrl = `https://${vercelDomain}`;
+  console.log(`Публичный домен: ${publicUrl}`);
 
   const envs = {
     DATABASE_URL: supa.databaseUrl,
