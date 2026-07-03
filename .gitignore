@@ -25,3 +25,6 @@ apps/backend/uploads/*
 .DS_Store
 coverage/
 *.log
+
+# preview / scratch artifacts
+scratch/
