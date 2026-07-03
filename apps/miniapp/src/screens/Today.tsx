@@ -14,6 +14,7 @@ export default function Today() {
   const [data, setData] = useState<TodayResponse | null>(null);
   const [error, setError] = useState(false);
   const [resting, setResting] = useState(false);
+  const [restError, setRestError] = useState(false);
 
   const load = useCallback(async () => {
     setError(false);
@@ -33,7 +34,6 @@ export default function Today() {
 
   const { cycle, workout, workoutLocked, bodyNote, nutritionTip, restDayAvailable, todayLog, streak } = data;
 
-  const [restError, setRestError] = useState(false);
   async function restToday() {
     setResting(true);
     setRestError(false);
