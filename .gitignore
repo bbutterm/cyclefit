@@ -11,6 +11,7 @@ node_modules/
 dist/
 build/
 public/
+api/index.js
 .vercel/
 *.tsbuildinfo
 

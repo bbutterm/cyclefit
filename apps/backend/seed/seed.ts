@@ -196,7 +196,7 @@ async function seedAdmin(): Promise<void> {
   await prisma.adminUser.upsert({
     where: { email: config.adminEmail },
     create: { email: config.adminEmail, passwordHash },
-    update: {},
+    update: { passwordHash }, // пароль из env — источник истины (смена через повторный сид)
   });
   console.log(`✓ Админ: ${config.adminEmail}`);
 }
