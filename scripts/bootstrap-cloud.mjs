@@ -166,19 +166,27 @@ async function setupVercel(supa) {
   const projects = list.body.projects ?? [];
   console.log(`Проектов: ${projects.length} (${projects.map((p) => p.name).join(', ') || '—'})`);
 
+  // ВАЖНО: только точное совпадение привязанного репозитория — проекты с похожим
+  // именем могут быть чужими (старый «cyclefit» указывал на другой репозиторий).
   let project = projects.find((p) => {
     const repo = p.link && `${p.link.org ?? p.link.owner ?? ''}/${p.link.repo ?? ''}`;
     return repo === REPO;
-  }) ?? projects.find((p) => /cycle/i.test(p.name));
+  });
 
   if (!project) {
-    console.log('Проект не найден — создаю с привязкой к репозиторию…');
-    const created = await vc('/v11/projects', {
-      method: 'POST',
-      body: { name: 'cyclefit', gitRepository: { type: 'github', repo: REPO } },
-    });
-    if (created.status >= 300) fail(`create vercel project: HTTP ${created.status} ${JSON.stringify(created.body)}`);
-    project = created.body;
+    console.log(`Проекта, привязанного к ${REPO}, нет — создаю новый…`);
+    for (const name of ['cyclefit-app', 'cyclefit-miniapp', `cyclefit-${Date.now() % 10000}`]) {
+      const created = await vc('/v11/projects', {
+        method: 'POST',
+        body: { name, gitRepository: { type: 'github', repo: REPO } },
+      });
+      if (created.status < 300) {
+        project = created.body;
+        break;
+      }
+      console.log(`create ${name}: HTTP ${created.status} ${JSON.stringify(created.body).slice(0, 200)}`);
+    }
+    if (!project) fail('не удалось создать проект Vercel — проверь, что GitHub-репозиторий подключён к Vercel (vercel.com → Add New → Project должен видеть bbutterm/cyclefit)');
   }
   console.log(`Использую проект Vercel: ${project.name} [${project.id}]`);
 
@@ -213,8 +221,7 @@ async function setupVercel(supa) {
   console.log(`Переменные окружения залиты: ${Object.keys(envs).join(', ')}`);
 
   // деплой main
-  const repoId = project.link?.repoId;
-  if (!repoId) fail('у проекта нет привязки к GitHub-репозиторию (link.repoId) — привяжи репозиторий в настройках Vercel');
+  const repoId = project.link?.repoId ?? 1288178159; // числовой id bbutterm/cyclefit
   const deploy = await vc('/v13/deployments', {
     method: 'POST',
     body: {

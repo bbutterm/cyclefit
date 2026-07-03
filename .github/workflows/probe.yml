@@ -13,10 +13,11 @@ jobs:
     steps:
       - name: Probe production
         run: |
-          for path in /api/health /api/plans / /admin /uploads-check; do
-            url="https://cyclefit.vercel.app$path"
-            [ "$path" = "/uploads-check" ] && url="https://cyclefit.vercel.app/api/health"
-            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 20 "$url" || echo "ERR")
-            echo "== $url → $code"
-            head -c 300 /tmp/body; echo; echo
+          for host in cyclefit-app.vercel.app cyclefit-miniapp.vercel.app; do
+            for path in /api/health /api/plans / /admin; do
+              url="https://$host$path"
+              code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 20 "$url" || echo "ERR")
+              echo "== $url → $code"
+              head -c 300 /tmp/body; echo; echo
+            done
           done
