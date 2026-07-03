@@ -288,7 +288,33 @@ async function setupVercel(supa) {
     if (i === 89) fail('деплой не завершился за 15 минут');
   }
   console.log(`✓ Деплой готов: ${publicUrl}`);
-  return { publicUrl };
+  return { publicUrl, projectId: project.id, depId };
+}
+
+/** Runtime-логи функции (стрим — читаем ограниченное время). */
+async function fetchRuntimeLogs(projectId, depId) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12_000);
+  let text = '';
+  try {
+    const res = await fetch(
+      `https://api.vercel.com/v1/projects/${projectId}/deployments/${depId}/runtime-logs?format=json`,
+      { headers: { Authorization: `Bearer ${VERCEL_TOKEN}` }, signal: controller.signal },
+    );
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+      if (text.length > 100_000) break;
+    }
+  } catch {
+    // таймаут стрима — норм, отдаём накопленное
+  } finally {
+    clearTimeout(timer);
+  }
+  return text;
 }
 
 // ---------- 3. Telegram webhook ----------
@@ -342,7 +368,7 @@ async function setupGithubVariables(publicUrl) {
 // ---------- main ----------
 
 const supa = await setupSupabase();
-const { publicUrl } = await setupVercel(supa);
+const { publicUrl, projectId, depId } = await setupVercel(supa);
 await setupTelegram(publicUrl);
 await setupGithubVariables(publicUrl);
 
@@ -353,6 +379,12 @@ for (let i = 0; i < 3; i++) {
   console.log(`healthcheck: HTTP ${health.status} ${JSON.stringify(health.body).slice(0, 200)}`);
   if (health.status === 200) break;
   await sleep(5000);
+}
+if (health.status !== 200) {
+  console.log('--- runtime-логи функции ---');
+  const logs = await fetchRuntimeLogs(projectId, depId);
+  console.log(logs.slice(-8000) || '(пусто)');
+  console.log('--- конец runtime-логов ---');
 }
 console.log('\n=== ГОТОВО ===');
 console.log(`Mini App:  ${publicUrl}`);
