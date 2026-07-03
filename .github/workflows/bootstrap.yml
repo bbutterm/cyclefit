@@ -14,18 +14,9 @@ on:
       telegram_bot_token:
         description: 'Telegram bot token'
         required: true
-      webhook_secret:
-        description: 'TELEGRAM_WEBHOOK_SECRET'
-        required: true
-      jwt_secret:
-        description: 'JWT_SECRET'
-        required: true
-      cron_secret:
-        description: 'CRON_SECRET'
-        required: true
       admin_password:
-        description: 'ADMIN_PASSWORD (админка)'
-        required: true
+        description: 'Пароль админки (пусто = сгенерировать)'
+        required: false
       supabase_project_ref:
         description: 'Supabase project ref (опционально)'
         required: false
@@ -49,9 +40,6 @@ jobs:
           VERCEL_TOKEN: ${{ inputs.vercel_token }}
           SUPABASE_TOKEN: ${{ inputs.supabase_token }}
           TELEGRAM_BOT_TOKEN: ${{ inputs.telegram_bot_token }}
-          TELEGRAM_WEBHOOK_SECRET: ${{ inputs.webhook_secret }}
-          JWT_SECRET: ${{ inputs.jwt_secret }}
-          CRON_SECRET: ${{ inputs.cron_secret }}
           ADMIN_PASSWORD: ${{ inputs.admin_password }}
           SUPABASE_PROJECT_REF: ${{ inputs.supabase_project_ref }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

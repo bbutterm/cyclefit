@@ -5,14 +5,12 @@
 //   4. GitHub: сохранить variable CRON_URL для cron-ping
 // Секреты приходят через env (workflow inputs) и НЕ печатаются в лог.
 
+import { randomBytes } from 'node:crypto';
+
 const {
   SUPABASE_TOKEN,
   VERCEL_TOKEN,
   TELEGRAM_BOT_TOKEN,
-  TELEGRAM_WEBHOOK_SECRET,
-  JWT_SECRET,
-  CRON_SECRET,
-  ADMIN_PASSWORD,
   SUPABASE_PROJECT_REF,
   GITHUB_TOKEN,
   GITHUB_REPOSITORY,
@@ -28,6 +26,12 @@ function fail(msg) {
 for (const [k, v] of Object.entries({ SUPABASE_TOKEN, VERCEL_TOKEN, TELEGRAM_BOT_TOKEN })) {
   if (!v) fail(`не задан ${k}`);
 }
+
+// Секреты приложения: генерируются на месте (в лог не пишутся, кроме пароля админки)
+const TELEGRAM_WEBHOOK_SECRET = randomBytes(16).toString('hex');
+const JWT_SECRET = randomBytes(32).toString('hex');
+const CRON_SECRET = randomBytes(16).toString('hex');
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || `cf-${randomBytes(6).toString('hex')}`;
 
 async function call(url, { method = 'GET', headers = {}, body } = {}) {
   const res = await fetch(url, {
@@ -187,12 +191,12 @@ async function setupVercel(supa) {
     SUPABASE_SERVICE_KEY: supa.serviceKey,
     SUPABASE_BUCKET: 'exercise-images',
     TELEGRAM_BOT_TOKEN,
-    TELEGRAM_WEBHOOK_SECRET: TELEGRAM_WEBHOOK_SECRET || 'change-me',
-    JWT_SECRET: JWT_SECRET || 'change-me',
-    CRON_SECRET: CRON_SECRET || 'change-me',
+    TELEGRAM_WEBHOOK_SECRET,
+    JWT_SECRET,
+    CRON_SECRET,
     PUBLIC_URL: publicUrl,
     ADMIN_EMAIL: 'admin@cyclefit.local',
-    ADMIN_PASSWORD: ADMIN_PASSWORD || 'change-me-admin',
+    ADMIN_PASSWORD,
     PAYMENTS_MODE: 'stub',
     TRIAL_DAYS: '7',
     DEV_AUTH_BYPASS: 'false',
@@ -247,7 +251,7 @@ async function setupTelegram(publicUrl) {
     method: 'POST',
     body: {
       url: `${publicUrl}/api/webhooks/telegram`,
-      secret_token: TELEGRAM_WEBHOOK_SECRET || 'change-me',
+      secret_token: TELEGRAM_WEBHOOK_SECRET,
     },
   });
   if (!res.body?.ok) fail(`setWebhook: ${JSON.stringify(res.body)}`);
@@ -256,8 +260,8 @@ async function setupTelegram(publicUrl) {
 
 // ---------- 4. GitHub variable для cron-ping ----------
 
-async function setupGithubVariable(publicUrl) {
-  if (!GITHUB_TOKEN) return console.log('GITHUB_TOKEN нет — пропускаю CRON_URL');
+async function setupGithubVariables(publicUrl) {
+  if (!GITHUB_TOKEN) return console.log('GITHUB_TOKEN нет — пропускаю переменные для cron-ping');
   const gh = (path, opts = {}) =>
     call(`https://api.github.com${path}`, {
       ...opts,
@@ -267,17 +271,24 @@ async function setupGithubVariable(publicUrl) {
         ...(opts.headers ?? {}),
       },
     });
-  const create = await gh(`/repos/${REPO}/actions/variables`, {
-    method: 'POST',
-    body: { name: 'CRON_URL', value: publicUrl },
-  });
-  if (create.status === 201) return console.log('✓ Variable CRON_URL создана');
-  const update = await gh(`/repos/${REPO}/actions/variables/CRON_URL`, {
-    method: 'PATCH',
-    body: { name: 'CRON_URL', value: publicUrl },
-  });
-  if (update.status < 300) return console.log('✓ Variable CRON_URL обновлена');
-  console.log(`CRON_URL не записана (HTTP ${create.status}/${update.status}) — добавь вручную в Settings → Actions → Variables`);
+  // CRON_SECRET хранится как variable (не secret): GITHUB_TOKEN не умеет писать
+  // секреты; ценность утечки минимальна — эндпоинт лишь запускает идемпотентный тик.
+  for (const [name, value] of [
+    ['CRON_URL', publicUrl],
+    ['CRON_SECRET', CRON_SECRET],
+  ]) {
+    const create = await gh(`/repos/${REPO}/actions/variables`, { method: 'POST', body: { name, value } });
+    if (create.status === 201) {
+      console.log(`✓ Variable ${name} создана`);
+      continue;
+    }
+    const update = await gh(`/repos/${REPO}/actions/variables/${name}`, {
+      method: 'PATCH',
+      body: { name, value },
+    });
+    if (update.status < 300) console.log(`✓ Variable ${name} обновлена`);
+    else console.log(`${name} не записана (HTTP ${create.status}/${update.status}) — добавь вручную в Settings → Actions → Variables`);
+  }
 }
 
 // ---------- main ----------
@@ -285,12 +296,12 @@ async function setupGithubVariable(publicUrl) {
 const supa = await setupSupabase();
 const { publicUrl } = await setupVercel(supa);
 await setupTelegram(publicUrl);
-await setupGithubVariable(publicUrl);
+await setupGithubVariables(publicUrl);
 
 // финальная проверка API
 const health = await call(`${publicUrl}/api/health`);
 console.log(`healthcheck: HTTP ${health.status} ${JSON.stringify(health.body)}`);
 console.log('\n=== ГОТОВО ===');
 console.log(`Mini App:  ${publicUrl}`);
-console.log(`Админка:   ${publicUrl}/admin`);
+console.log(`Админка:   ${publicUrl}/admin  (логин admin@cyclefit.local, пароль: ${ADMIN_PASSWORD})`);
 console.log(`API:       ${publicUrl}/api/health`);
