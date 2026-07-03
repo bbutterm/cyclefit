@@ -24,6 +24,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://cyclefit:cyclefit@localhost:5432/cyclefit
+      DIRECT_URL: postgresql://cyclefit:cyclefit@localhost:5432/cyclefit
       DEV_AUTH_BYPASS: 'true'
       JWT_SECRET: ci-secret
       ADMIN_EMAIL: admin@cyclefit.local

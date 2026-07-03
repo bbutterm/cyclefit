@@ -1,10 +1,14 @@
 generator client {
   provider = "prisma-client-js"
+  // native — локальная разработка; rhel — среда выполнения Vercel
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // DATABASE_URL — pooler Supabase (pgbouncer), DIRECT_URL — прямое соединение для миграций
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Level {

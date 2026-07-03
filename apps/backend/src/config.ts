@@ -33,4 +33,10 @@ export const config = {
   },
   devAuthBypass: process.env.DEV_AUTH_BYPASS === 'true',
   uploadsDir: resolve(process.cwd(), 'uploads'),
+  // Supabase Storage для картинок упражнений (если не задан — локальная папка uploads/)
+  supabaseUrl: (process.env.SUPABASE_URL ?? '').replace(/\/$/, ''),
+  supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY ?? '',
+  supabaseBucket: process.env.SUPABASE_BUCKET ?? 'exercise-images',
+  // Секрет cron-эндпоинтов (Vercel Cron шлёт Authorization: Bearer $CRON_SECRET)
+  cronSecret: process.env.CRON_SECRET ?? '',
 };

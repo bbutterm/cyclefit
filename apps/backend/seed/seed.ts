@@ -1,8 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { config } from '../src/config.js';
+import { getImageStorage } from '../src/services/storage.js';
 import { DEFAULT_TEXTS } from '../src/texts.js';
 import { SEED_EXERCISES, type SeedExercise } from './exercises.js';
 import { SEED_PHASE_CONTENT } from './phase-content.js';
@@ -40,7 +39,7 @@ function svgPlaceholder(name: string, caption: string, color: string): string {
 }
 
 async function seedExercises(): Promise<Map<string, string>> {
-  mkdirSync(config.uploadsDir, { recursive: true });
+  const storage = getImageStorage();
   const idBySlug = new Map<string, string>();
 
   for (const ex of SEED_EXERCISES) {
@@ -57,9 +56,13 @@ async function seedExercises(): Promise<Map<string, string>> {
       const color = GROUP_COLORS[ex.muscleGroups[0]] ?? '#FFE4E1';
       for (let i = 0; i < frames.length; i++) {
         const filename = `seed-${ex.slug}-${i + 1}.svg`;
-        writeFileSync(join(config.uploadsDir, filename), svgPlaceholder(ex.name, frames[i], color));
+        const url = await storage.save(
+          filename,
+          Buffer.from(svgPlaceholder(ex.name, frames[i], color)),
+          'image/svg+xml',
+        );
         await prisma.exerciseImage.create({
-          data: { exerciseId: exercise.id, order: i, url: `/uploads/${filename}`, caption: frames[i] },
+          data: { exerciseId: exercise.id, order: i, url, caption: frames[i] },
         });
       }
     }

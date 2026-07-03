@@ -1,15 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
-import { unlink } from 'node:fs/promises';
-import { extname, join } from 'node:path';
-import { pipeline } from 'node:stream/promises';
+import { extname } from 'node:path';
 import bcrypt from 'bcryptjs';
 import type { AdminDashboard, SlotCoverageCell } from '@cyclefit/shared';
 import { EQUIPMENTS, LEVELS, PHASES } from '@cyclefit/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { config } from '../config.js';
 import { addMonths, PLAN_MONTHS } from '../domain/subscription.js';
+import { getImageStorage } from '../services/storage.js';
 import { DEFAULT_TEXTS } from '../texts.js';
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
@@ -166,10 +163,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
     const ext = extname(file.filename || '') || '.webp';
     const filename = `${randomUUID()}${ext}`;
-    await pipeline(file.file, createWriteStream(join(config.uploadsDir, filename)));
+    const url = await getImageStorage().save(
+      filename,
+      await file.toBuffer(),
+      file.mimetype || 'application/octet-stream',
+    );
 
     const data = await app.prisma.exerciseImage.create({
-      data: { exerciseId: id, order, caption, url: `/uploads/${filename}` },
+      data: { exerciseId: id, order, caption, url },
     });
     return { data };
   });
@@ -179,9 +180,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const image = await app.prisma.exerciseImage.findUnique({ where: { id } });
     if (!image) return reply.code(404).send({ error: 'not_found' });
     await app.prisma.exerciseImage.delete({ where: { id } });
-    if (image.url.startsWith('/uploads/')) {
-      await unlink(join(config.uploadsDir, image.url.slice('/uploads/'.length))).catch(() => {});
-    }
+    await getImageStorage().remove(image.url);
     return { data: { id } };
   });
 
