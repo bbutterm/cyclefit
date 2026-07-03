@@ -1,0 +1,58 @@
+# Одноразовая настройка облака: Supabase + Vercel + Telegram webhook.
+# Запускается вручную (workflow_dispatch). Токены передаются как inputs и не печатаются в лог.
+name: bootstrap-cloud
+
+on:
+  workflow_dispatch:
+    inputs:
+      vercel_token:
+        description: 'Vercel token (vcp_...)'
+        required: true
+      supabase_token:
+        description: 'Supabase access token (sbp_...)'
+        required: true
+      telegram_bot_token:
+        description: 'Telegram bot token'
+        required: true
+      webhook_secret:
+        description: 'TELEGRAM_WEBHOOK_SECRET'
+        required: true
+      jwt_secret:
+        description: 'JWT_SECRET'
+        required: true
+      cron_secret:
+        description: 'CRON_SECRET'
+        required: true
+      admin_password:
+        description: 'ADMIN_PASSWORD (админка)'
+        required: true
+      supabase_project_ref:
+        description: 'Supabase project ref (опционально)'
+        required: false
+
+concurrency: bootstrap-cloud
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Bootstrap cloud
+        env:
+          VERCEL_TOKEN: ${{ inputs.vercel_token }}
+          SUPABASE_TOKEN: ${{ inputs.supabase_token }}
+          TELEGRAM_BOT_TOKEN: ${{ inputs.telegram_bot_token }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ inputs.webhook_secret }}
+          JWT_SECRET: ${{ inputs.jwt_secret }}
+          CRON_SECRET: ${{ inputs.cron_secret }}
+          ADMIN_PASSWORD: ${{ inputs.admin_password }}
+          SUPABASE_PROJECT_REF: ${{ inputs.supabase_project_ref }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/bootstrap-cloud.mjs
