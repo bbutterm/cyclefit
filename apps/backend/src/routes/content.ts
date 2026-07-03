@@ -2,6 +2,7 @@ import type { CalendarDay, StatsResponse, TodayResponse, WorkoutLogStatus } from
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { resolveCycle } from '../domain/cycle.js';
+import { addDays } from '../domain/dates.js';
 import { subscriptionInfo } from '../domain/subscription.js';
 import { cycleTodayFor, todayISO, userCycleState } from '../domain/user-cycle.js';
 import { phaseContentFor } from '../services/content-service.js';
@@ -14,8 +15,10 @@ import {
   workoutPreview,
 } from '../services/workout-service.js';
 
+// Через плеер пользовательница доходит только до completed/skipped.
+// 'rest' — отдельный эндпоинт /api/today/rest (проверяет фазу), 'replaced_easy' ставит сервер (бот).
 const logSchema = z.object({
-  status: z.enum(['completed', 'skipped', 'replaced_easy', 'rest']),
+  status: z.enum(['completed', 'skipped']),
   feltRating: z.number().int().min(1).max(5).optional(),
 });
 
@@ -126,7 +129,19 @@ export async function contentRoutes(app: FastifyInstance): Promise<void> {
     if (!workout) return reply.code(404).send({ error: 'not_found' });
 
     const user = req.currentUser;
-    const date = todayISO(user.timezone);
+    const today = todayISO(user.timezone);
+    // Переход через полночь: если тренировка была назначена вчера (начата до полуночи)
+    // и на сегодня лога ещё нет — засчитываем на дату назначения, иначе стрик рвётся.
+    const yesterday = addDays(today, -1);
+    const assignment = await app.prisma.dailyAssignment.findFirst({
+      where: { userId: user.id, workoutId: id, date: { in: [dateFromISO(today), dateFromISO(yesterday)] } },
+      orderBy: { date: 'desc' },
+    });
+    const yesterdayLog = await app.prisma.workoutLog.findUnique({
+      where: { userId_date: { userId: user.id, date: dateFromISO(yesterday) } },
+    });
+    const date =
+      assignment && assignment.date.toISOString().slice(0, 10) === yesterday && !yesterdayLog ? yesterday : today;
     await logWorkout(app.prisma, user.id, date, id, parsed.data.status, parsed.data.feltRating);
     return { ok: true, streak: await getStreak(app.prisma, user.id, date) };
   });

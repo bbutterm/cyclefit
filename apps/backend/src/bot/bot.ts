@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { addDays } from '../domain/dates.js';
 import { cycleTodayFor, todayISO } from '../domain/user-cycle.js';
 import { getOrCreateUser } from '../services/user-service.js';
-import { dateFromISO, replaceWithEasyWorkout } from '../services/workout-service.js';
+import { clearDailyAssignment, dateFromISO, replaceWithEasyWorkout } from '../services/workout-service.js';
 import { getText } from '../texts.js';
 
 export function createBot(prisma: PrismaClient): Bot | null {
@@ -76,10 +76,8 @@ export function createBot(prisma: PrismaClient): Bot | null {
     if (!user) return ctx.answerCallbackQuery();
 
     if (answer === 'not_yet') {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { periodAskCount: { increment: 1 }, periodAskLastAt: new Date() },
-      });
+      // Счётчик вопросов увеличивается при отправке (см. notifications.ts),
+      // здесь — только подтверждаем ответ, без повторного инкремента.
       await ctx.reply(await getText(prisma, 'bot.period.not_yet.reply'));
     } else {
       const today = todayISO(user.timezone);
@@ -98,6 +96,8 @@ export function createBot(prisma: PrismaClient): Bot | null {
         create: { userId: user.id, date: dateFromISO(today), periodStartedConfirmed: true },
         update: { periodStartedConfirmed: true },
       });
+      // пересчёт плана: сбрасываем сегодняшнее назначение под менструальную фазу
+      await clearDailyAssignment(prisma, user.id, today);
       await ctx.reply(await getText(prisma, 'bot.period.confirmed'));
     }
     await ctx.answerCallbackQuery();

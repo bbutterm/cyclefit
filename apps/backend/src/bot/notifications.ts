@@ -86,14 +86,17 @@ async function sendPeriodConfirm(prisma: PrismaClient, bot: Bot, user: User, dat
   const startISO = user.cycleStartDate.toISOString().slice(0, 10);
   const confirmedToday = startISO === date; // только что подтвердила — не спрашиваем
 
-  const isDayBefore = cycleDay === user.cycleLength;
-  const isExpectedDay = cycleDay === 1 && !confirmedToday;
+  // Первый вопрос — за день до расчётной даты или в расчётный день.
+  const firstAsk =
+    user.periodAskCount === 0 && (cycleDay === user.cycleLength || (cycleDay === 1 && !confirmedToday));
+  // Повтор — не чаще раза в 2 дня, максимум до 3 вопросов суммарно (§4.3).
   const isRetry =
     user.periodAskCount > 0 &&
+    user.periodAskCount < 3 &&
     !!user.periodAskLastAt &&
     Date.now() - user.periodAskLastAt.getTime() >= 2 * 86_400_000;
 
-  if (!isDayBefore && !isExpectedDay && !isRetry) return;
+  if (!firstAsk && !isRetry) return;
 
   const kb = periodQuestionKeyboard({
     today: await getText(prisma, 'bot.period.today'),
@@ -103,6 +106,11 @@ async function sendPeriodConfirm(prisma: PrismaClient, bot: Bot, user: User, dat
   });
   if (await sendSafe(bot, prisma, user, await getText(prisma, 'bot.period.question'), kb)) {
     await markSent(prisma, user.id, 'period_confirm', date);
+    // Счётчик вопросов растёт при ОТПРАВКЕ (а не при ответе) — иначе игнор ⇒ вечный спам.
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { periodAskCount: { increment: 1 }, periodAskLastAt: new Date() },
+    });
   }
 }
 

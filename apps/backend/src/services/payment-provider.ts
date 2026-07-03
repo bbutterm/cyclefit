@@ -39,11 +39,14 @@ export class StubPaymentProvider implements PaymentProvider {
   }
 
   async cancelSubscription(userId: string) {
-    await this.prisma.subscription.updateMany({
-      where: { userId },
-      data: { status: 'expired' },
-    });
-    this.log(`STUB PAYMENT: cancelled for user ${userId}`);
+    // Отмена = не продлевать. Доступ сохраняется до currentPeriodEndsAt —
+    // подписку в expired переведёт ежедневный cron по истечении оплаченного периода.
+    // Если периода нет (триал без даты) — гасим сразу.
+    const sub = await this.prisma.subscription.findUnique({ where: { userId } });
+    if (!sub?.currentPeriodEndsAt || sub.currentPeriodEndsAt <= new Date()) {
+      await this.prisma.subscription.updateMany({ where: { userId }, data: { status: 'expired' } });
+    }
+    this.log(`STUB PAYMENT: cancelled (no renew) for user ${userId}`);
   }
 
   async handleWebhook() {

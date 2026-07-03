@@ -37,6 +37,11 @@ export function subscriptionInfo(sub: SubscriptionRow | null, now: Date = new Da
 
 export function addMonths(from: Date, months: number): Date {
   const d = new Date(from);
-  d.setUTCMonth(d.getUTCMonth() + months);
+  const targetMonth = d.getUTCMonth() + months;
+  d.setUTCMonth(targetMonth);
+  // Защита от перескока через конец месяца (31 янв + 1 мес → должно быть 28/29 фев, а не 3 мар).
+  if (d.getUTCMonth() !== ((targetMonth % 12) + 12) % 12) {
+    d.setUTCDate(0); // последний день предыдущего (целевого) месяца
+  }
   return d;
 }

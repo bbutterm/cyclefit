@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
 import bcrypt from 'bcryptjs';
 import type { AdminDashboard, SlotCoverageCell } from '@cyclefit/shared';
 import { EQUIPMENTS, LEVELS, PHASES } from '@cyclefit/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { addMonths, PLAN_MONTHS } from '../domain/subscription.js';
-import { getImageStorage } from '../services/storage.js';
+import { detectImageType, getImageStorage } from '../services/storage.js';
 import { DEFAULT_TEXTS } from '../texts.js';
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
@@ -161,13 +160,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const order = Number(fields.order?.value ?? 0);
     const caption = fields.caption?.value ?? null;
 
-    const ext = extname(file.filename || '') || '.webp';
-    const filename = `${randomUUID()}${ext}`;
-    const url = await getImageStorage().save(
-      filename,
-      await file.toBuffer(),
-      file.mimetype || 'application/octet-stream',
-    );
+    // Allowlist типов: только растровые картинки. SVG запрещён (это XSS-вектор:
+    // отдаётся с того же домена, где админ-SPA хранит JWT в localStorage).
+    const buffer = await file.toBuffer();
+    const detected = detectImageType(buffer);
+    if (!detected) {
+      return reply.code(400).send({ error: 'unsupported_file_type', allowed: ['png', 'jpeg', 'webp', 'gif'] });
+    }
+    const filename = `${randomUUID()}.${detected.ext}`;
+    const url = await getImageStorage().save(filename, buffer, detected.mime);
 
     const data = await app.prisma.exerciseImage.create({
       data: { exerciseId: id, order, caption, url },
