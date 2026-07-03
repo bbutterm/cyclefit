@@ -10,8 +10,12 @@ async function main(): Promise<void> {
   const bot = createBot(prisma);
 
   if (bot) {
-    await bot.init().catch((err) => {
-      app.log.warn({ err: String(err) }, 'bot init failed — вебхук всё равно зарегистрирован');
+    // init с таймаутом: недоступность Telegram API не должна блокировать запуск API
+    await Promise.race([
+      bot.init(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('bot init timeout')), 8000)),
+    ]).catch((err) => {
+      app.log.warn({ err: String(err) }, 'bot init failed — продолжаем без него');
     });
 
     // Идемпотентная обработка телеграм-апдейтов (§4.5): update_id фиксируется до обработки
