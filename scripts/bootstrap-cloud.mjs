@@ -5,7 +5,7 @@
 //   4. GitHub: сохранить variable CRON_URL для cron-ping
 // Секреты приходят через env (workflow inputs) и НЕ печатаются в лог.
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 const {
   SUPABASE_TOKEN,
@@ -27,10 +27,12 @@ for (const [k, v] of Object.entries({ SUPABASE_TOKEN, VERCEL_TOKEN, TELEGRAM_BOT
   if (!v) fail(`не задан ${k}`);
 }
 
-// Секреты приложения: генерируются на месте (в лог не пишутся, кроме пароля админки)
-const TELEGRAM_WEBHOOK_SECRET = randomBytes(16).toString('hex');
+// Секреты приложения. Webhook/cron — детерминированные (выводятся из bot token),
+// чтобы ссылки для ручной активации были известны заранее; JWT — случайный.
+const derive = (salt) => createHash('sha256').update(`${TELEGRAM_BOT_TOKEN}:${salt}`).digest('hex').slice(0, 32);
+const TELEGRAM_WEBHOOK_SECRET = derive('webhook');
+const CRON_SECRET = derive('cron');
 const JWT_SECRET = randomBytes(32).toString('hex');
-const CRON_SECRET = randomBytes(16).toString('hex');
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || `cf-${randomBytes(6).toString('hex')}`;
 
 async function call(url, { method = 'GET', headers = {}, body } = {}) {
