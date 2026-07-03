@@ -1,0 +1,26 @@
+# Бесплатный «крон» для тарифа Vercel Hobby: GitHub Actions ежечасно дёргает
+# cron-эндпоинты приложения. Нужны в настройках репозитория:
+#   Settings → Secrets and variables → Actions:
+#     - secret   CRON_SECRET — тот же, что в env Vercel
+#     - variable CRON_URL    — https://<домен>.vercel.app
+name: cron-ping
+
+on:
+  schedule:
+    - cron: '5 * * * *' # ежечасно: рассылки бота по таймзонам + истечение подписок
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping hourly cron endpoint
+        env:
+          CRON_URL: ${{ vars.CRON_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "CRON_URL/CRON_SECRET не настроены — пропускаю (см. комментарий в workflow)"
+            exit 0
+          fi
+          curl -sS --fail --max-time 120 -H "Authorization: Bearer $CRON_SECRET" "$CRON_URL/api/cron/hourly"

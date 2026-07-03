@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: cyclefit
+          POSTGRES_PASSWORD: cyclefit
+          POSTGRES_DB: cyclefit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cyclefit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://cyclefit:cyclefit@localhost:5432/cyclefit
+      DIRECT_URL: postgresql://cyclefit:cyclefit@localhost:5432/cyclefit
+      DEV_AUTH_BYPASS: 'true'
+      JWT_SECRET: ci-secret
+      ADMIN_EMAIL: admin@cyclefit.local
+      ADMIN_PASSWORD: admin12345
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cyclefit/backend prisma:generate
+      - run: pnpm --filter @cyclefit/backend prisma:migrate
+      - run: pnpm --filter @cyclefit/backend seed
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @cyclefit/miniapp build
+      - run: pnpm --filter @cyclefit/admin build

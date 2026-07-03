@@ -1,0 +1,278 @@
+generator client {
+  provider = "prisma-client-js"
+  // native — локальная разработка; rhel — среда выполнения Vercel
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  // DATABASE_URL — pooler Supabase (pgbouncer), DIRECT_URL — прямое соединение для миграций
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Level {
+  beginner
+  intermediate
+  advanced
+}
+
+enum Equipment {
+  none
+  basic
+  dumbbells
+}
+
+enum Goal {
+  tone
+  weight_loss
+  energy
+  recovery
+}
+
+enum CycleMode {
+  tracked
+  no_cycle
+}
+
+enum Phase {
+  menstrual
+  follicular
+  ovulatory
+  luteal
+}
+
+enum WorkoutLogStatus {
+  completed
+  skipped
+  replaced_easy
+  rest
+}
+
+enum Mood {
+  good
+  ok
+  bad
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  expired
+  none
+}
+
+enum SubscriptionPlan {
+  monthly
+  quarterly
+  yearly
+}
+
+enum PaymentProviderKind {
+  stub
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  telegramId            BigInt    @unique
+  username              String?
+  firstName             String?
+  level                 Level     @default(beginner)
+  equipment             Equipment @default(none)
+  goal                  Goal      @default(tone)
+  restrictions          String[]  @default([])
+  cycleMode             CycleMode @default(tracked)
+  cycleStartDate        DateTime? @db.Date
+  cycleLength           Int       @default(28)
+  periodLength          Int       @default(5)
+  timezone              String    @default("Europe/Moscow")
+  notifyHourLocal       Int       @default(8)
+  onboardingCompletedAt DateTime?
+  disclaimerAcceptedAt  DateTime?
+  botBlocked            Boolean   @default(false)
+  // подтверждение начала месячных (§4.3): счётчик «ещё нет», дата последнего вопроса
+  periodAskCount        Int       @default(0)
+  periodAskLastAt       DateTime?
+  createdAt             DateTime  @default(now())
+
+  subscription Subscription?
+  workoutLogs  WorkoutLog[]
+  checkins     DailyCheckin[]
+  shownWorkouts UserWorkoutShown[]
+  assignments  DailyAssignment[]
+  notifications NotificationLog[]
+}
+
+model Exercise {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  name              String
+  description       String
+  commonMistakes    String?
+  safetyCue         String?
+  muscleGroups      String[] @default([])
+  equipment         Equipment @default(none)
+  contraindications String[] @default([])
+  createdAt         DateTime @default(now())
+
+  images ExerciseImage[]
+  items  WorkoutItem[]
+}
+
+model ExerciseImage {
+  id         String  @id @default(cuid())
+  exerciseId String
+  order      Int
+  url        String
+  caption    String?
+
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([exerciseId])
+}
+
+model Workout {
+  id          String    @id @default(cuid())
+  title       String
+  phase       Phase
+  level       Level
+  equipment   Equipment
+  durationMin Int
+  intensity   Int       @default(3)
+  description String?
+  isPublished Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  items       WorkoutItem[]
+  logs        WorkoutLog[]
+  shown       UserWorkoutShown[]
+  assignments DailyAssignment[]
+
+  @@index([phase, level, equipment, isPublished])
+}
+
+model WorkoutItem {
+  id          String  @id @default(cuid())
+  workoutId   String
+  exerciseId  String
+  order       Int
+  sets        Int     @default(1)
+  reps        Int?
+  durationSec Int?
+  restSec     Int     @default(30)
+
+  workout  Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([workoutId])
+}
+
+model PhaseContent {
+  id           String  @id @default(cuid())
+  phase        Phase
+  dayHintMin   Int?
+  dayHintMax   Int?
+  nutritionTip String
+  bodyNote     String
+  order        Int     @default(0)
+
+  @@index([phase])
+}
+
+model WorkoutLog {
+  id         String           @id @default(cuid())
+  userId     String
+  workoutId  String?
+  date       DateTime         @db.Date
+  status     WorkoutLogStatus
+  feltRating Int?
+  createdAt  DateTime         @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, date])
+}
+
+model DailyCheckin {
+  id                      String   @id @default(cuid())
+  userId                  String
+  date                    DateTime @db.Date
+  mood                    Mood?
+  periodStartedConfirmed  Boolean?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+// Ротация: когда тренировка в последний раз показывалась пользовательнице
+model UserWorkoutShown {
+  userId      String
+  workoutId   String
+  lastShownAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@id([userId, workoutId])
+}
+
+// Тренировка, закреплённая за днём (стабильна в течение дня; хранит замену на лёгкую)
+model DailyAssignment {
+  id           String   @id @default(cuid())
+  userId       String
+  date         DateTime @db.Date
+  workoutId    String
+  easyReplaced Boolean  @default(false)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model Subscription {
+  id                  String              @id @default(cuid())
+  userId              String              @unique
+  status              SubscriptionStatus  @default(none)
+  plan                SubscriptionPlan?
+  trialEndsAt         DateTime?
+  currentPeriodEndsAt DateTime?
+  provider            PaymentProviderKind @default(stub)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+// Тексты бота и пейвола (§8.6), key-value
+model AppText {
+  key   String @id
+  value String
+}
+
+// Идемпотентность телеграм-апдейтов
+model ProcessedUpdate {
+  updateId  BigInt   @id
+  createdAt DateTime @default(now())
+}
+
+// Идемпотентность рассылок: одна отправка вида kind на дату
+model NotificationLog {
+  id     String   @id @default(cuid())
+  userId String
+  kind   String
+  date   DateTime @db.Date
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, date])
+}
