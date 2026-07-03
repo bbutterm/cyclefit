@@ -1,21 +1,32 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { FastifyInstance } from 'fastify';
-import { prisma } from './prisma.js';
-import { buildFullApp } from './server.js';
 
-// Вход serverless-функции Vercel. При сборке (pnpm build:vercel) бандлится esbuild'ом
-// в api/index.js — один самодостаточный файл (кроме @prisma/client с нативным движком).
+// Вход serverless-функции Vercel (бандлится esbuild'ом в api/index.js).
+// Вся инициализация — через динамический импорт внутри обработчика: если что-то
+// падает при загрузке (env, Prisma, бандл), ошибка возвращается текстом в ответе,
+// а не превращается в немой FUNCTION_INVOCATION_FAILED.
 
-let appPromise: Promise<FastifyInstance> | null = null;
+type App = { server: { emit: (event: string, req: IncomingMessage, res: ServerResponse) => void } };
 
-async function getApp(): Promise<FastifyInstance> {
+let appPromise: Promise<App> | null = null;
+
+async function getApp(): Promise<App> {
+  const { prisma } = await import('./prisma.js');
+  const { buildFullApp } = await import('./server.js');
   const { app } = buildFullApp(prisma, false);
   await app.ready();
-  return app;
+  return app as unknown as App;
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  appPromise ??= getApp();
-  const app = await appPromise;
-  app.server.emit('request', req, res);
+  try {
+    appPromise ??= getApp();
+    const app = await appPromise;
+    app.server.emit('request', req, res);
+  } catch (err) {
+    appPromise = null; // следующая попытка — с чистого листа
+    const detail = err instanceof Error ? `${err.stack ?? err.message}` : String(err);
+    res.statusCode = 500;
+    res.setHeader('content-type', 'text/plain; charset=utf-8');
+    res.end(`CYCLEFIT INIT ERROR\n${detail}`);
+  }
 }
