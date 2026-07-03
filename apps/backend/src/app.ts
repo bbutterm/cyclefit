@@ -4,7 +4,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import type { PrismaClient } from '@prisma/client';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { config } from './config.js';
 import { subscriptionInfo } from './domain/subscription.js';
 import { adminRoutes } from './routes/admin.js';
@@ -34,8 +34,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register(jwt, { secret: config.jwtSecret });
   app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
 
-  mkdirSync(config.uploadsDir, { recursive: true });
-  app.register(fastifyStatic, { root: config.uploadsDir, prefix: '/uploads/' });
+  // Локальное хранилище картинок — только там, где диск записываемый (dev/self-hosted).
+  // На Vercel файловая система read-only, картинки живут в Supabase Storage.
+  try {
+    mkdirSync(config.uploadsDir, { recursive: true });
+  } catch {
+    // read-only ФС — пропускаем
+  }
+  if (existsSync(config.uploadsDir)) {
+    app.register(fastifyStatic, { root: config.uploadsDir, prefix: '/uploads/' });
+  }
 
   // --- auth-декораторы ---
   app.decorate('authenticate', async (req: any, reply: any) => {
