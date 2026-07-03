@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { clampCycleLength, clampPeriodLength } from '../domain/cycle.js';
 import { isValidISODate } from '../domain/dates.js';
 import { isValidTimezone, todayISO } from '../domain/user-cycle.js';
-import { dateFromISO } from '../services/workout-service.js';
+import { clearDailyAssignment, dateFromISO } from '../services/workout-service.js';
 import { startTrialIfNone, toMeResponse } from '../services/user-service.js';
 
 const updateSchema = z.object({
@@ -41,6 +41,10 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     if (b.cycleStartDate != null && b.cycleStartDate !== '' && !isValidISODate(b.cycleStartDate)) {
       return reply.code(400).send({ error: 'invalid_date' });
     }
+    // дата начала цикла не может быть в будущем (иначе «день 28» по модулю сегодня)
+    if (b.cycleStartDate && b.cycleStartDate > todayISO(req.currentUser.timezone)) {
+      return reply.code(400).send({ error: 'date_in_future' });
+    }
 
     const user = req.currentUser;
     const data: Record<string, unknown> = {};
@@ -66,6 +70,16 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
       await startTrialIfNone(app.prisma, user.id);
     }
 
+    // Смена параметров цикла меняет фазу дня → сбрасываем сегодняшнее назначение
+    const cycleChanged =
+      b.cycleMode !== undefined ||
+      b.cycleStartDate !== undefined ||
+      b.cycleLength !== undefined ||
+      b.periodLength !== undefined;
+    if (cycleChanged && updated.onboardingCompletedAt) {
+      await clearDailyAssignment(app.prisma, updated.id, todayISO(updated.timezone));
+    }
+
     return toMeResponse(app.prisma, updated);
   });
 
@@ -88,6 +102,8 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
         periodAskLastAt: null,
       },
     });
+    // пересчёт плана: сбрасываем сегодняшнее назначение под новую фазу
+    await clearDailyAssignment(app.prisma, updated.id, today);
     return toMeResponse(app.prisma, updated);
   });
 }

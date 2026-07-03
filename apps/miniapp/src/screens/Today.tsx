@@ -33,12 +33,16 @@ export default function Today() {
 
   const { cycle, workout, workoutLocked, bodyNote, nutritionTip, restDayAvailable, todayLog, streak } = data;
 
+  const [restError, setRestError] = useState(false);
   async function restToday() {
     setResting(true);
+    setRestError(false);
     try {
       await api.restToday();
       hapticLight();
       await load();
+    } catch {
+      setRestError(true);
     } finally {
       setResting(false);
     }
@@ -121,6 +125,9 @@ export default function Today() {
                 <Button variant="ghost" className="mt-1" onClick={restToday} disabled={resting}>
                   Сегодня отдыхаю
                 </Button>
+              )}
+              {restError && (
+                <p className="text-xs text-red-400 text-center mt-1">Не получилось. Попробуй ещё раз.</p>
               )}
             </>
           )}

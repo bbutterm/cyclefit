@@ -118,6 +118,24 @@ export async function replaceWithEasyWorkout(
   return { workoutId: easy.id };
 }
 
+/**
+ * Сброс закреплённой тренировки за конкретный день (и незалогированного лога),
+ * чтобы /api/today пересобрал её под новую фазу. Вызывается при отметке начала
+ * месячных / смене режима цикла — иначе на «Сегодня» останется вчерашний слот.
+ */
+export async function clearDailyAssignment(
+  prisma: PrismaClient,
+  userId: string,
+  dateISO: string,
+): Promise<void> {
+  const date = dateFromISO(dateISO);
+  await prisma.dailyAssignment.deleteMany({ where: { userId, date } });
+  // лог удаляем только если он ещё не «закрыт» пользовательницей (нет статуса выполнения)
+  await prisma.workoutLog.deleteMany({
+    where: { userId, date, status: { notIn: ['completed', 'replaced_easy', 'rest'] } },
+  });
+}
+
 type ExerciseWithImages = {
   id: string;
   slug: string;

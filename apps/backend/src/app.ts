@@ -42,7 +42,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     // read-only ФС — пропускаем
   }
   if (existsSync(config.uploadsDir)) {
-    app.register(fastifyStatic, { root: config.uploadsDir, prefix: '/uploads/' });
+    app.register(fastifyStatic, {
+      root: config.uploadsDir,
+      prefix: '/uploads/',
+      // защита от MIME-sniffing загруженного контента
+      setHeaders: (res) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Content-Disposition', 'inline');
+      },
+    });
   }
 
   // --- auth-декораторы ---
