@@ -8,6 +8,15 @@ import { Button, Card, ErrorState, IntensityDots, PHASE_COLORS, PHASE_EMOJI, Spi
 
 const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 
+// Русская плюрализация: 1 день, 2 дня, 5 дней (с исключением 11–14).
+function pluralDays(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} день`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} дня`;
+  return `${n} дней`;
+}
+
 export default function Today() {
   const { me } = useMe();
   const navigate = useNavigate();
@@ -158,9 +167,7 @@ export default function Today() {
             <span className="text-2xl">🔥</span>
             <div>
               <div className="font-bold text-lg leading-none">{streak}</div>
-              <div className="text-xs text-soft">
-                {streak === 1 ? 'день подряд' : streak >= 2 && streak <= 4 ? 'дня подряд' : 'дней подряд'}
-              </div>
+              <div className="text-xs text-soft">{pluralDays(streak)} подряд</div>
             </div>
           </div>
           <Link to="/calendar" className="text-sm font-medium text-peach-500">

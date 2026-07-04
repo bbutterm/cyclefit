@@ -31,6 +31,12 @@ async function markSent(prisma: PrismaClient, userId: string, kind: string, date
     .catch(() => {});
 }
 
+// Однократные за весь жизненный цикл (не привязаны к дню): триал/win-back.
+async function everSent(prisma: PrismaClient, userId: string, kind: string) {
+  const row = await prisma.notificationLog.findFirst({ where: { userId, kind } });
+  return !!row;
+}
+
 function localHour(user: User, now: Date): number {
   const dt = DateTime.fromJSDate(now).setZone(user.timezone);
   return dt.isValid ? dt.hour : DateTime.fromJSDate(now).setZone('Europe/Moscow').hour;
@@ -122,8 +128,10 @@ async function sendSubscriptionNudges(prisma: PrismaClient, bot: Bot, user: User
 
   // За 2 дня до конца триала
   if (sub.status === 'trial' && sub.trialEndsAt) {
+    // окно ≤2 дней (не строгое равенство: пропущенный cron-тик не теряет напоминание;
+    // повтор гасит NotificationLog по kind)
     const daysLeft = Math.ceil((sub.trialEndsAt.getTime() - now.getTime()) / 86_400_000);
-    if (daysLeft === 2 && !(await alreadySent(prisma, user.id, 'trial_ending', date))) {
+    if (daysLeft <= 2 && daysLeft >= 0 && !(await everSent(prisma, user.id, 'trial_ending'))) {
       const text = await getText(prisma, 'bot.trial.ending', {
         date: DateTime.fromJSDate(sub.trialEndsAt).setZone(user.timezone).toFormat('dd.MM'),
       });
@@ -142,7 +150,7 @@ async function sendSubscriptionNudges(prisma: PrismaClient, bot: Bot, user: User
     const expiredAt = sub.currentPeriodEndsAt ?? sub.trialEndsAt;
     if (!expiredAt) return;
     const daysSince = Math.floor((now.getTime() - expiredAt.getTime()) / 86_400_000);
-    if (daysSince === 7 && !(await alreadySent(prisma, user.id, 'winback', date))) {
+    if (daysSince >= 7 && !(await everSent(prisma, user.id, 'winback'))) {
       const tomorrow = resolveCycle(addDays(date, 1), userCycleState(user));
       const text = await getText(prisma, 'bot.winback', {
         phase: PHASE_NAMES_RU[tomorrow.phase].toLowerCase(),

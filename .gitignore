@@ -28,3 +28,8 @@ coverage/
 
 # preview / scratch artifacts
 scratch/
+
+# e2e
+e2e/artifacts/
+e2e/results.json
+e2e/test-results/

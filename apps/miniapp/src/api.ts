@@ -22,7 +22,18 @@ export class ApiError extends Error {
   }
 }
 
-async function authenticate(): Promise<void> {
+let authInFlight: Promise<void> | null = null;
+
+// Single-flight: параллельные запросы (StrictMode, несколько экранов) ждут одну авторизацию,
+// а не запускают несколько /api/auth/telegram одновременно.
+function authenticate(): Promise<void> {
+  authInFlight ??= doAuthenticate().finally(() => {
+    authInFlight = null;
+  });
+  return authInFlight;
+}
+
+async function doAuthenticate(): Promise<void> {
   const initData = getInitDataRaw();
   const body: Record<string, unknown> = {};
   if (initData) {
