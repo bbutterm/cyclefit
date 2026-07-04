@@ -38,8 +38,13 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
     if (b.timezone && !isValidTimezone(b.timezone)) {
       return reply.code(400).send({ error: 'invalid_timezone' });
     }
-    if (b.cycleStartDate != null && b.cycleStartDate !== '' && !isValidISODate(b.cycleStartDate)) {
-      return reply.code(400).send({ error: 'invalid_date' });
+    if (b.cycleStartDate != null && b.cycleStartDate !== '') {
+      if (!isValidISODate(b.cycleStartDate)) {
+        return reply.code(400).send({ error: 'invalid_date' });
+      }
+      if (b.cycleStartDate > todayISO(b.timezone ?? req.currentUser.timezone)) {
+        return reply.code(400).send({ error: 'date_in_future' });
+      }
     }
     // дата начала цикла не может быть в будущем (иначе «день 28» по модулю сегодня)
     if (b.cycleStartDate && b.cycleStartDate > todayISO(req.currentUser.timezone)) {

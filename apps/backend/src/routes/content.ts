@@ -120,7 +120,7 @@ export async function contentRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.post('/api/workouts/:id/log', { preHandler: [app.authenticate] }, async (req, reply) => {
+  app.post('/api/workouts/:id/log', { preHandler: [app.authenticate, app.requireSubscription] }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = logSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_request' });

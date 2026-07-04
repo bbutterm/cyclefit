@@ -41,7 +41,8 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
   // Вебхук платёжного провайдера (stub — no-op, §9). Идемпотентность обеспечивает провайдер.
   app.post('/api/webhooks/payment', async (req) => {
     const event = await app.paymentProvider.handleWebhook(req.body);
-    if (event) app.log.info({ event }, 'payment webhook event');
+    // Без полного payload (§12 приватность): только тип и userId
+    if (event) app.log.info({ type: event.type, userId: event.userId }, 'payment webhook event');
     return { ok: true };
   });
 }

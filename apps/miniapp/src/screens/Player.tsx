@@ -86,7 +86,8 @@ export default function Player() {
       setStage({ kind: 'rest', index, set: set + 1, secondsLeft: item.restSec });
     } else if (index + 1 < items.length) {
       localStorage.setItem(progressKey(id), String(index + 1));
-      setStage({ kind: 'rest', index: index + 1, set: 1, secondsLeft: item.restSec });
+      // отдых перед следующим упражнением — по его restSec
+      setStage({ kind: 'rest', index: index + 1, set: 1, secondsLeft: items[index + 1].restSec });
     } else {
       localStorage.removeItem(progressKey(id));
       hapticSuccess();
